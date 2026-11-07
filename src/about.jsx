@@ -147,7 +147,8 @@ class AboutPage extends basePage {
         <p>OS hostname: {this.state.hostname}</p>
         <p>OS version: {this.state.OSVersion}</p>
         <p>Node.js version: {this.state.Nodejsversion}</p>
-        <p>Rpanion-server version: {this.state.rpanionversion}</p>
+        <p>MapPi version: {this.state.rpanionversion}</p>
+        <p>MapPi is based on <a href='https://github.com/stephendade/Rpanion-server'>Rpanion-server</a> by Stephen Dade, licensed under the GNU GPL v3.</p>
         <h2>Logs</h2>
         <p><Button size="sm" onClick={this.getlogs}>Download Logs</Button></p>
         <h2>Controls</h2>

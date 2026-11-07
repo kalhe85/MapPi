@@ -1,216 +1,141 @@
-<div align="left">
+# MapPi
 
-![Build Status](https://github.com/stephendade/Rpanion-server/actions/workflows/unitests.yml/badge.svg)![Package Status](https://github.com/stephendade/Rpanion-server/actions/workflows/package.yml/badge.svg)![Coverage Status](https://coveralls.io/repos/github/stephendade/Rpanion-server/badge.svg)
+MapPi is a companion computer server for a small DIY mapping drone. It runs on a
+Raspberry Pi Zero 2 W next to an ArduPilot flight controller and handles:
 
-</div>
+- **Geotagged photos for mapping**: the flight controller triggers a USB or CSI
+  camera over MAVLink; each photo is tagged with the position at the moment the
+  frame was captured.
+- **Mapping outputs**: `geo.txt` (ready for OpenDroneMap/WebODM) and
+  `captures.csv` (position, attitude and timing of every photo) next to the photos.
+- **Field access over Wi-Fi**: the Pi runs its own hotspot. From a phone or laptop
+  you open the web interface, check the camera and download a whole flight as a zip.
+- **Telemetry for QGroundControl**: MAVLink is routed to UDP, so a ground station on
+  the hotspot connects directly.
 
-User Documentation is at https://www.docs.rpanion.com/software/rpanion-server
+It is a personal, weekend DIY project, used internally only.
 
-<p float="left">
-<img src="https://raw.githubusercontent.com/stephendade/Rpanion-server/master/images/controller.png" width="200">
-<img src="https://raw.githubusercontent.com/stephendade/Rpanion-server/master/images/network.png" width="200">
-<img src="https://raw.githubusercontent.com/stephendade/Rpanion-server/master/images/video.png" width="200">
-</p>
+> [!IMPORTANT]
+> **Based on [Rpanion-server](https://github.com/stephendade/Rpanion-server)**
+> by Stephen Dade, released under the GNU GPL v3. MapPi is an independent fork:
+> it is developed separately and is not affiliated with or supported by the
+> Rpanion-server project. Please do not report MapPi issues to the original project.
+> See [Credits and license](#credits-and-license).
 
-# Rpanion-server
+## Hardware
 
-This is a node.js based server for companion computers used in Mavlink-based vehicles (ie Ardupilot, PX4).
+| Part | Used in this project |
+|------|----------------------|
+| Companion computer | Raspberry Pi Zero 2 W (Raspberry Pi OS Bookworm/Trixie) |
+| Flight controller | ArduPilot board (e.g. Flywoo GOKU F405 HD 1-2S AIO V2) |
+| Camera | USB (UVC, MJPEG) camera module or Raspberry Pi CSI camera |
+| GNSS | Any GPS connected to the flight controller |
 
-It presents a web-based interface (running on the companion computer), where system settings such as network,
-telemetry and video streaming can be configured from.
-
-Other functions such as log file management, NTRIP input and PPP connections are also supported.
-
-## Supported Boards
-
-| Board | Compatible OS |
-|-------|--------------|
-| Raspberry Pi 3B or later| Raspberry Pi OS, Ubuntu 22.04 LTS |
-| Nvidia Jetson Orin | Ubuntu 22.04 LTS |
-| Orange Pi Zero 3 | Ubuntu 24.04 LTS |
-| Libre Computer Le Potato | Raspberry Pi OS |
-
-On the [Libre Computer Le Potato](https://libre.computer/products/aml-s905x-cc/), Rpanion-server is compatible with their flavor of [Raspberry Pi OS](https://distro.libre.computer/ci/raspbian/).
-
-> [!NOTE]
-> Some users may have issues connecting to the UART on the Raspberry Pi 3B+. Further details and configuration fixes are at https://github.com/stephendade/Rpanion-server/issues/215#issuecomment-2049058406.
-
-> [!NOTE]
-> For the Raspberry Pi CM4, Wifi AP performance is typically poor when using the
-> internal antenna. It is recommended to use an external antenna. Additionally
-> any CSI cameras will not be autodetected. See [here](https://forums.raspberrypi.com/viewtopic.php?t=352540) for more details.
-
+Other boards supported by Rpanion-server (Raspberry Pi 3/4/5, Jetson Orin,
+Orange Pi Zero 3) should still work, but are not tested for MapPi.
 
 ## Features
 
-Rpanion-server allows the user to configure:
+Mapping-specific (MapPi):
 
-- Flight Controller telemetry routing to udp outputs
-- Video Streaming via an RTSP server
-- Network configuration
-- NTRIP Streaming
-- Logging (tlog and bin logs)
+- Photo capture triggered by ArduPilot (MAVLink camera, RC switch, mission, or
+  distance-based triggering)
+- Position corrected to the frame capture time using the GPS velocity
+- EXIF: GPS position, altitude, capture time with milliseconds, image direction
+- `geo.txt` and `captures.csv` per media folder
+- Fixed exposure setting to reduce motion blur
+- MJPEG frames from USB cameras saved without re-encoding (lighter on the Pi Zero)
+- Zip download of all media or one flight folder from the Log Browser
 
-## Installing
+Inherited from Rpanion-server:
 
-Rpanion-server has pre-built debian packges for arm64 platforms (Jetson, Raspberry Pi, etc). This
-is the easiest way to get started. The packages are available from the "Releases" page.
+- Flight controller telemetry routing to UDP outputs (e.g. QGroundControl)
+- Wi-Fi hotspot and network configuration
+- Video streaming (RTSP) and recording
+- Flight log (tlog/bin) management, NTRIP, VPN, cloud upload
 
-### Disk Images
+## Installing (Raspberry Pi Zero 2 W)
 
-There are full disk images with a pre-configured Wifi hotspot for the Raspberry Pi. These
-are on the "releases" page
-
-### Installation from deb package
-
-This method installs rpanion-server (and pre-requisities) on an existing system.
-
-First install the required packages:
-
-```
-sudo apt install -y gstreamer1.0-plugins-good libgstrtspserver-1.0-0 gir1.2-gst-rtsp-server-1.0 
-sudo apt install -y gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-ugly gstreamer1.0-plugins-bad
-sudo apt install -y network-manager python3 python3-gst-1.0 python3-pip dnsmasq git jq iw
-sudo apt install -y python3-lxml python3-numpy gpsbabel zip python3-dev gstreamer1.0-x ppp python3-venv
-sudo apt install -y python3-opencv v4l-utils python3-setuptools
-```
-
-If running on RasPiOS, install the libcamera drivers:
-
-```
-sudo apt install -y gstreamer1.0-libcamera python3-picamera2 python3-libcamera python3-kms++
-```
-
-If running on a NVIDIA Jetson Orin, install the hardware accelerated gstreamer packages:
-```
-sudo apt install -y nvidia-l4t-gstreamer
-```
-
-Install Nodejs (from https://deb.nodesource.com/):
-```
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo bash -
-sudo apt-get install -y nodejs
-```
-
-
-To (optionally) use the Zerotier and/or Wireguard VPN's, install as follows:
-
-```
-curl -s https://install.zerotier.com | sudo bash
-sudo apt install wireguard wireguard-tools
-```
-
-Download Rpanion-server from the releases page, then install Rpanion-server:
-```
-wget https://github.com/stephendade/Rpanion-server/releases/download/v1.0.0/rpanion-server_1.0.0_arm64.deb
-sudo dpkg -i rpanion-server_1.0.0_arm64.deb
-```
-
-For device-specific configurations, see the ``./deploy`` folder for Jetson, X86 and Raspberry Pi (RasPiOS and Ubuntu) scripts.
-
-After installation, Rpanion-server will be available at http://<device_ip>:3001
-
-### Raspberry Pi notes
-
-The Raspberry Pi Zero W(1) and Raspberry Pi 2 are not supported from version 0.10.0 onwards.
-
-Note the CSI camera does not currently work on Ubuntu 22.04 and 24.04, due to incompatibilities with the Raspberry Pi.
-
-Note the GPIO UARTs are not currently working with Ubuntu 24.04.
-
-Ubuntu 24 requires a workaround to install ``python3-dev`` due to package versioning issues:
-```
-sudo apt install zlib1g=1:1.3.dfsg-3.1ubuntu2 zlib1g-dev=1:1.3.dfsg-3.1ubuntu2
-```
-
-If an older version of the Raspberry Pi OS is used (Buster, V10 or below), the ``gst-rpicamsrc`` Gstreamer element
-must be installed. See https://github.com/thaytan/gst-rpicamsrc for install instructions.
-
-### Libre Computer AML-S905X-CC aka 'Le Potato' notes
-
-If using a usb to serial converter, you might need to modify permissions of the device.
-
-**Temporary device permission update**
-
-```
-sudo chmod 666 /dev/ttyACM0
-```
-
-**Persistent device permission update**
-
-Follow the steps on this site for your specific device:
-https://www.xmodulo.com/change-usb-device-permission-linux.html
-
-## Building and Running in development mode
-
-Follow the scripts in the ``/deploy`` folder for your selected platform to set up the
-development environment.
-
-Then run the ``devExtras.sh`` file to download a compiled ``mavlink-router`` binary.
-
-Running in development mode allows for any code changes to trigger a restart of Rpanion-server. 
-
-Rpanion-server consists of a node.js server running on port 3001 and a React frontend application
-running on port 3000 in development mode. 
-
-Run both applications (front and back end) together, use the command:
+Install from source on Raspberry Pi OS:
 
 ```bash
-npm run dev
+git clone --recurse-submodules https://github.com/kalhe85/Rpanion-server.git mappi
+cd mappi/deploy
+./RasPi3-4-5-deploy.sh        # system packages, serial port, NetworkManager (reboots)
 ```
 
-It is important to *only* use ``npm run dev`` during development, as it will skip
-the user login and authentication checks.
+After the reboot, install Node.js 24 (https://deb.nodesource.com/), then build
+and install the package:
 
-At this point, the website will be active at ``http://<ip of device>:3000``
+```bash
+cd ~/mappi
+./deploy/devExtras.sh         # downloads the mavlink-router binary
+npm ci
+npm run build
+npm run package
+sudo dpkg -i rpanion-server_*.deb
+```
 
-## Packaging
+The web interface is then at `http://<device_ip>:3001`. To set up the Wi-Fi
+hotspot, see `deploy/wifi_access_point.sh` or the Network page.
 
-To produce a deb package, run ``npm run build && npm run package``.
+> [!NOTE]
+> Internal names are unchanged from Rpanion-server so the install scripts keep
+> working: the package and systemd service are still called `rpanion-server`,
+> and the config is in `/etc/rpanion-server`. Logs: `journalctl -u rpanion-server`.
+
+## Mapping quick start
+
+1. **Flight Controller page**: select the serial port to the flight controller and
+   enable **datastream requests** (needed for geotagging).
+2. **Video page**: choose **Photo** mode, the camera and resolution, a **Media
+   Destination** per flight (e.g. `flight_01`) and a fixed exposure (e.g. 1000 µs
+   in daylight).
+3. **ArduPilot**: set up a MAVLink camera so the flight controller can trigger
+   photos (e.g. by distance with `CAM1_TRIGG_DIST`), or trigger from QGroundControl
+   or an RC switch.
+4. Fly slowly (2–3 m/s) with 75–80% overlap, camera pointing straight down.
+5. **Log Browser page**: download the flight folder as a zip and load the photos
+   (with `geo.txt`) into WebODM.
 
 ## Default username and password
 
-Rpanion-server has access control in place to prevent unauthorised users from
-making changes to the system via the GUI.
+The default username is `admin` and password `admin`. Change it on the
+"User Management" page. Access control does *not* apply to MAVLink or video
+streams. Media files (`/media`, `/mediazip`) can be downloaded by anyone on the
+network, so use a password on the Wi-Fi hotspot.
 
-The access control does *not* apply to any MAVLink or video streams
+## Development
 
-The default username is ``admin`` and password ``admin``. This can be changed
-on the "User Management" page.
-
-Usernames and passwords are stored in the ``user.json`` file in the Rpanion-server folder. Resetting this file (via ``git checkout user.json``)
-will reset the usernames/passwords back to it's defaults.
-
-If Rpanion-server runs in a trusted network or you ensure access control by other means, you can choose to disable the built-in access control by setting an environment variable `DISABLE_AUTH=1` on the node process, e.g. in the systemd `rpanion-server.service`.
-
-## Tests
-
-Unit tests are split into separate commands for the frontend (ReactJS) and backend.
-
-Unit tests can be run with the command:
+Follow the scripts in `deploy/` to set up the environment, then run
+`deploy/devExtras.sh` to download `mavlink-router`.
 
 ```bash
-npm run testback
-npm run testfront
-```
-
-Code coverage statistics are automatically calculated for the backend tests.
-
-Linting (via eslint) is available via:
-
-```bash
+npm run dev          # backend on :3001, frontend on :3000, no login checks
+npm run testback     # backend tests
+npm run testfront    # frontend tests
 npm run lint
+python3 -m unittest discover -s python -p 'test_*.py'   # mapping helpers
 ```
 
-## Releasing
+Only use `npm run dev` during development, as it skips the login checks.
 
-Use ``npx npm-check-updates -u`` to update nodejs libraries.
+## Credits and license
 
-Use ``npm version minor`` to create a new release commit.
+MapPi is a modified version of **Rpanion-server**, created by
+**Stephen Dade** and its contributors:
 
-Then update the changelog.md and amend this to the commit.
+- Source: https://github.com/stephendade/Rpanion-server
+- Documentation: https://www.docs.rpanion.com/software/rpanion-server
 
-Then "git push --tags" to create the release PR.
+Most of this code base (web interface, MAVLink routing, networking, video,
+logging and the original photo/geotag feature) is their work. Thank you!
 
-To produce a disk image from a SD card, insert the card and run ``./deploy/create_image.sh``.
+MapPi changes (from November 2026) by Sonph: mapping-focused photo capture,
+geotag timing, `geo.txt`/`captures.csv`, zip download, fixed exposure and this
+rebranding.
 
+This program is free software: you can redistribute it and/or modify it under
+the terms of the **GNU General Public License version 3**, as published by the
+Free Software Foundation. It is distributed WITHOUT ANY WARRANTY. See
+[LICENSE](LICENSE) for the full text.

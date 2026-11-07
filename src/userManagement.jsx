@@ -136,7 +136,7 @@ class userManagement extends basePage {
     return (
     <div style={{ width: 500 }}>
       <p><i>Manage access to Web GUI</i></p>
-      <p>Add and remove user access to Rpanion-server. Usernames and passwords must be 2-20 characters.</p>
+      <p>Add and remove user access to MapPi. Usernames and passwords must be 2-20 characters.</p>
       <Table id='users' striped bordered hover size="sm">
       <thead>
         <tr>

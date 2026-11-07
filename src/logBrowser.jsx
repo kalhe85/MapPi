@@ -211,7 +211,7 @@ class LoggerPage extends basePage {
           <Accordion.Item eventKey="3">
             <Accordion.Header>Photo and Video Files</Accordion.Header>
             <Accordion.Body>
-              <p>Photos and video files recorded by Rpanion</p>
+              <p>Photos and video files recorded by MapPi</p>
               
               <div className="form-group row" style={{ marginBottom: '5px' }}>
                 <div className="col-sm-8">
