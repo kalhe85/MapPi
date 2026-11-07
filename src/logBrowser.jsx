@@ -93,6 +93,25 @@ class LoggerPage extends basePage {
     });
   }
 
+  // Zip download links: one for everything, plus one per media subfolder
+  // (e.g. per flight, set by "Media Destination" on the Video page)
+  renderMediaZipLinks(logfilelist) {
+    const baseUrl = window.location.origin;
+    const folders = [...new Set(logfilelist
+      .map((log) => log.key.replace(/\\/g, '/'))
+      .filter((key) => key.includes('/'))
+      .map((key) => key.substring(0, key.lastIndexOf('/'))))].sort();
+    const links = [{ label: 'Download all media (.zip)', folder: '' }]
+      .concat(folders.map((folder) => ({ label: `Download ${folder} (.zip)`, folder })));
+
+    return links.map((link) => (
+      <Button key={link.folder || '_all'} variant="secondary" size="sm" style={{ marginRight: '5px', marginBottom: '5px' }}
+        href={baseUrl + '/mediazip?folder=' + encodeURIComponent(link.folder)}>
+        {link.label}
+      </Button>
+    ));
+  }
+
   clearLogs = (event) => {
     //this.setState((state) => ({ value: state.value + 1}));
     const id = event.target.id;
@@ -206,6 +225,12 @@ class LoggerPage extends basePage {
                 </div>
               </div>
               </div>
+              {this.state.MediaFiles.length > 0 && (
+                <div style={{ marginBottom: '5px' }}>
+                  {this.renderMediaZipLinks(this.state.MediaFiles)}
+                  <p><i>Each folder includes geo.txt (for OpenDroneMap/WebODM) and captures.csv with the position of every photo.</i></p>
+                </div>
+              )}
               <Table id='Mediafile' striped bordered hover size="sm">
                 <thead>
                   <tr><th>File Name</th><th>Size</th><th>Modified</th></tr>

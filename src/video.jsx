@@ -35,6 +35,7 @@ class VideoPage extends basePage {
       stillCapSelected: this.props.selectedStillCap || '',
       videoMediaDestination: this.props.videoMediaDestination || '',
       stillMediaDestination: this.props.stillMediaDestination || '',
+      stillExposureUs: 0,
       recordLocally: false,
 
       // Global state
@@ -171,6 +172,7 @@ class VideoPage extends basePage {
 
           videoMediaDestination: activeResolved.mediaDestination,
           stillMediaDestination: stillData.stillMediaDestination || '',
+          stillExposureUs: stillData.stillExposureUs || 0,
           customRTSPSource: videoData.customRTSPSource || '',
           recordLocally: activeResolved.recordLocally
         });
@@ -633,6 +635,7 @@ componentWillUnmount() {
           stillWidth: capObj.width,
           stillHeight: capObj.height,
           stillFormat: capObj.format,
+          stillExposureUs: parseInt(this.state.stillExposureUs, 10) || 0,
           mediaDestination: this.state.stillMediaDestination
         };
       }
@@ -1048,6 +1051,21 @@ renderContent() {
                       value={this.state.stillMediaDestination}
                       placeholder="e.g., flight_01"
                     />
+                  </div>
+                </div>
+                <div className="form-group row" style={{ marginBottom: '5px' }}>
+                  <label className="col-sm-4 col-form-label">Fixed Exposure (µs)</label>
+                  <div className="col-sm-8">
+                    <Form.Control
+                      disabled={active}
+                      type="number"
+                      min="0"
+                      max="1000000"
+                      step="100"
+                      onChange={(e) => this.setState({ stillExposureUs: e.target.value })}
+                      value={this.state.stillExposureUs}
+                    />
+                    <Form.Text muted>0 = auto exposure. For mapping, a short fixed exposure (e.g. 1000 µs) reduces motion blur.</Form.Text>
                   </div>
                 </div>
               </div>

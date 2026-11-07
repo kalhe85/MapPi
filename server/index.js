@@ -18,6 +18,7 @@ const VPNManager = require('./vpn')
 const logConversionManager = require('./logConverter.js')
 const userLogin = require('./userLogin.js')
 const logpaths = require('./paths.js')
+const mediaZip = require('./mediaZip.js')
 
 const settings = require('settings-store')
 
@@ -897,6 +898,16 @@ app.get('/api/networkclients', authenticateToken, (req, res) => {
 app.use('/logdownload', express.static(logpaths.flightsLogsDir))
 // Serve the media files
 app.use('/media', express.static(MEDIA_ROOT))
+// Download a media folder as one zip, e.g. /mediazip?folder=flight_01
+// (no folder = everything). Plain link like /media above, so it works
+// as a normal browser download on phones/laptops.
+app.get('/mediazip', (req, res) => {
+  const target = mediaZip.resolveMediaFolder(MEDIA_ROOT, req.query.folder)
+  if (!target) {
+    return res.status(404).json({ error: 'Media folder not found' })
+  }
+  mediaZip.sendFolderZip(MEDIA_ROOT, target, res)
+})
 
 app.get('/api/logfiles', authenticateToken, (req, res) => {
   logManager.getLogs((err, tlogs, binlogs, kmzlogs, media) => {
@@ -1275,6 +1286,8 @@ app.post('/api/camera/start', authenticateToken, [
   check('stillDevice').if(check('cameraMode').equals('photo')).isString().notEmpty(),
   check('stillWidth').if(check('cameraMode').equals('photo')).isInt({ min: 1 }),
   check('stillHeight').if(check('cameraMode').equals('photo')).isInt({ min: 1 }),
+  // Fixed exposure time in microseconds for photo mode. 0 (or missing) = auto exposure
+  check('stillExposureUs').if(check('cameraMode').equals('photo')).optional().isInt({ min: 0, max: 1000000 }),
   // Local recording toggle for streaming mode (optional, defaults to off)
   check('recordLocally').if(check('cameraMode').equals('streaming')).optional().isBoolean(),
   // Media destination for photo, video, and streaming (local recording) modes (optional, but validate if provided)
@@ -1388,6 +1401,7 @@ app.post('/api/camera/start', authenticateToken, [
       width: parseInt(req.body.stillWidth, 10),
       height: parseInt(req.body.stillHeight, 10),
       format: req.body.stillFormat,
+      exposureUs: parseInt(req.body.stillExposureUs, 10) || 0,
       mediaDestination: safeMediaDestination
     };
   }

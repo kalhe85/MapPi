@@ -128,7 +128,8 @@ class flightLogger {
     const newfilestlog = this.findInDir(this.topfolder, '.tlog')
     const newfilesbinlog = this.findInDir(this.topfolder, '.bin')
     const newfileskmzlog = this.findInDir(this.kmzlogfolder, '.kmz')
-    const newfilesmedia = this.findInDir(this.mediafolder, ['.jpg', '.png', '.gif', '.avi', '.mp4', '.h264', '.h265'])
+    // geo.txt and captures.csv are the geotag sidecar files written in photo mode
+    const newfilesmedia = this.findInDir(this.mediafolder, ['.jpg', '.png', '.gif', '.avi', '.mp4', '.h264', '.h265', 'geo.txt', 'captures.csv'])
 
     return callback(false, newfilestlog, newfilesbinlog, newfileskmzlog, newfilesmedia)
   };

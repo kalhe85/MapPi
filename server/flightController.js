@@ -94,7 +94,15 @@ class FCDetails {
             lon: 0,
             alt: 0,       // MSL in meters
             relAlt: 0,    // Relative to home/ground in meters
-            hdg: 0        // Heading in degrees
+            hdg: 0,       // Heading in degrees
+            vx: 0,        // Ground speed north, m/s
+            vy: 0,        // Ground speed east, m/s
+            vz: 0,        // Ground speed down, m/s
+            timeMs: 0,    // System time (epoch ms) when the position was received
+            roll: null,   // Attitude in degrees (from ATTITUDE), null if not received
+            pitch: null,
+            yaw: null,
+            attTimeMs: 0  // System time (epoch ms) when the attitude was received
     }
 
     // load settings
@@ -291,6 +299,32 @@ class FCDetails {
     }
   }
 
+  // GLOBAL_POSITION_INT: lat/lon as int * 1E7, alt as mm, velocities as cm/s, heading as cdeg.
+  // The receive time and velocity let photo geotagging correct the position
+  // to the moment the frame was actually captured.
+  updatePosition (data) {
+    if (!this.vehiclePosition) return
+    this.vehiclePosition.lat = data.lat / 10000000
+    this.vehiclePosition.lon = data.lon / 10000000
+    this.vehiclePosition.alt = data.alt / 1000
+    this.vehiclePosition.relAlt = data.relativeAlt / 1000
+    this.vehiclePosition.hdg = data.hdg / 100
+    this.vehiclePosition.vx = data.vx / 100
+    this.vehiclePosition.vy = data.vy / 100
+    this.vehiclePosition.vz = data.vz / 100
+    this.vehiclePosition.timeMs = Date.now()
+  }
+
+  // ATTITUDE: angles in radians
+  updateAttitude (data) {
+    if (!this.vehiclePosition) return
+    const toDeg = (rad) => rad * 180 / Math.PI
+    this.vehiclePosition.roll = toDeg(data.roll)
+    this.vehiclePosition.pitch = toDeg(data.pitch)
+    this.vehiclePosition.yaw = toDeg(data.yaw)
+    this.vehiclePosition.attTimeMs = Date.now()
+  }
+
   rebootFC () {
     // command the flight controller to reboot
     if (this.m !== null) {
@@ -452,14 +486,9 @@ class FCDetails {
         // got valid message - send on to attached classes
         this.previousConnection = true
         if (packet.header.msgid === standard.GlobalPositionInt.MSG_ID) {
-            // MAVLink sends lat/lon as int * 1E7, alt as mm, heading as cdeg
-            if (this.vehiclePosition) {
-                this.vehiclePosition.lat = data.lat / 10000000
-                this.vehiclePosition.lon = data.lon / 10000000
-                this.vehiclePosition.alt = data.alt / 1000
-                this.vehiclePosition.relAlt = data.relativeAlt / 1000
-                this.vehiclePosition.hdg = data.hdg / 100
-            }
+          this.updatePosition(data)
+        } else if (packet.header.msgid === common.Attitude.MSG_ID) {
+          this.updateAttitude(data)
         }
         this.eventEmitter.emit('gotMessage', packet, data)
       })

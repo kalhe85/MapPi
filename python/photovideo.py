@@ -91,6 +91,15 @@ parser.add_argument("-f", "--min-disk-space", metavar = "N",
                 help="Minimum free disk space (in MB) required to save files. Default: 1000 MB",
                 default=1000
                 )
+parser.add_argument("--exposure-us", metavar="US", type=int, dest="exposureUs",
+                    help="Photo mode: fixed exposure time in microseconds (reduces motion blur). 0 = auto exposure [default]",
+                    default=0
+                    )
+parser.add_argument("--raw-mjpeg", choices=['auto', 'off'], dest="rawMjpeg",
+                    help="Photo mode, V4L2 cameras: save the camera's MJPEG frames directly instead of "
+                         "decoding and re-encoding them (faster, no extra quality loss). Default: auto",
+                    default='auto'
+                    )
 args = parser.parse_args()
 
 mediaPath = args.mediaPath
@@ -150,76 +159,65 @@ except (ImportError, OSError):
 
 try:
     import cv2
+    import numpy
     print("Loaded OpenCV-Python", flush=True)
     print("Finished loading camera libraries.", flush=True)
 except ImportError:
     print("Critical Error: OpenCV-Python (cv2) not found. Exiting.", file=sys.stderr)
     sys.exit(1)
 
-# --- Helper Functions for EXIF ---
-def to_deg(value, loc):
-    """Converts decimal coordinates to EXIF-ready rational (deg, min, sec)"""
-    if value < 0:
-        loc_value = loc[1] # S or W
+import mapping_utils
+
+GPS_FILE = '/tmp/rpanion_gps.json'
+PHOTO_SEQ = 0
+
+# --- Geotagging ---
+def read_trigger_position():
+    """Read the position that Rpanion-server wrote when the capture was triggered."""
+    if not os.path.exists(GPS_FILE):
+        return None
+    try:
+        with open(GPS_FILE, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Could not read {GPS_FILE}: {e}", file=sys.stderr)
+        return None
+
+def geotag_image(filepath, capture_time):
+    """Add EXIF time/GPS tags and append to geo.txt/captures.csv. Returns the position used."""
+    pos, reason = mapping_utils.position_at_capture(read_trigger_position(), capture_time)
+    if pos:
+        print(f"Geotag: {reason}", flush=True)
     else:
-        loc_value = loc[0] # N or E
-    abs_value = abs(value)
-    deg = int(abs_value)
-    t1 = (deg, 1)
-    min = int((abs_value - deg) * 60)
-    t2 = (min, 1)
-    sec = round((abs_value - deg - min / 60) * 3600 * 100)
-    t3 = (sec, 100)
-    return (t1, t2, t3), loc_value
+        print(f"Warning: not geotagging - {reason}. Check that \"Enable datastream requests\" "
+              "is enabled on the Flight Controller page.", flush=True)
 
-def geotag_image(filepath):
-    if not HAS_PIEXIF:
-        print("EXIF library not available. Skipping geotag.", flush=True)
-        return
-
-    gps_file = '/tmp/rpanion_gps.json'
-    if not os.path.exists(gps_file):
-        print("GPS coordinate data not found in /tmp/rpanion_gps.json")
-        return
+    if HAS_PIEXIF:
+        try:
+            try:
+                existing = piexif.load(filepath)
+            except Exception:
+                existing = None
+            exif_dict = mapping_utils.build_exif(piexif, pos, capture_time, existing)
+            piexif.insert(piexif.dump(exif_dict), filepath)
+            if pos:
+                print(f"Geotagged image with Lat: {pos['lat']:.7f}, Lon: {pos['lon']:.7f}, Alt: {pos['alt']:.1f}", flush=True)
+        except Exception as e:
+            print(f"Error Geotagging: {e}", file=sys.stderr)
+    else:
+        print("EXIF library not available. Skipping EXIF geotag.", flush=True)
 
     try:
-        with open(gps_file, 'r') as f:
-            data = json.load(f)
-        
-        # Check if data is valid (non-zero)
-        if data['lat'] == 0 and data['lon'] == 0:
-            print("Warning: GPS Lat/Lon are 0.0 (No Fix). Skipping geotag.", flush=True)
-            return
-
-        lat_deg, lat_ref = to_deg(data['lat'], ["N", "S"])
-        lon_deg, lon_ref = to_deg(data['lon'], ["E", "W"])
-        
-        # Altitude (MSL)
-        alt = data.get('alt', 0)
-        alt_ref = 0 if alt >= 0 else 1
-        alt_rational = (int(abs(alt) * 100), 100)
-
-        exif_dict = piexif.load(filepath)
-        
-        gps_ifd = {
-            piexif.GPSIFD.GPSLatitudeRef: lat_ref,
-            piexif.GPSIFD.GPSLatitude: lat_deg,
-            piexif.GPSIFD.GPSLongitudeRef: lon_ref,
-            piexif.GPSIFD.GPSLongitude: lon_deg,
-            piexif.GPSIFD.GPSAltitudeRef: alt_ref,
-            piexif.GPSIFD.GPSAltitude: alt_rational,
-        }
-
-        exif_dict["GPS"] = gps_ifd
-        exif_bytes = piexif.dump(exif_dict)
-        piexif.insert(exif_bytes, filepath)
-        print(f"Geotagged image with Lat: {data['lat']}, Lon: {data['lon']}", flush=True)
-        
-        # Cleanup
-        os.remove(gps_file)
-
+        mapping_utils.append_capture_logs(os.path.dirname(filepath), os.path.basename(filepath), pos, capture_time)
     except Exception as e:
-        print(f"Error Geotagging: {e}", file=sys.stderr)
+        print(f"Error writing geo.txt/captures.csv: {e}", file=sys.stderr)
+    return pos
+
+def next_photo_path(capture_time, ext="jpg"):
+    """Millisecond + sequence file name, so rapid triggers never overwrite each other."""
+    global PHOTO_SEQ
+    PHOTO_SEQ += 1
+    return mapping_utils.unique_path(mediaPath, mapping_utils.media_filename(capture_time, PHOTO_SEQ, ext))
 
 # Main script setup
 picam2_still = None
@@ -228,6 +226,9 @@ v4l2_cam = None
 v4l2_writer = None
 encoder = None
 use_picamera = False
+RAW_MJPEG = False   # V4L2 photo mode: frames are the camera's own JPEG bytes
+JPEG_DHT = b""      # standard Huffman tables, for MJPEG frames that omit them
+V4L2_FLUSH_FRAMES = 5  # stale frames to drop before a photo (1 if the driver honours BUFFERSIZE=1)
 
 # Create media directory if it doesn't exist
 try:
@@ -267,6 +268,9 @@ if captureMode == "photo":
         config = picam2_still.create_still_configuration({"size":(args.vidWidth, args.vidHeight)}, transform=Transform(rotation=args.imageRotation))
         picam2_still.configure(config)
         picam2_still.start()
+        if args.exposureUs > 0:
+            picam2_still.set_controls({"AeEnable": False, "ExposureTime": args.exposureUs})
+            print(f"Manual exposure: {args.exposureUs} us", flush=True)
         time.sleep(2)
         print(f"Camera is ready in Picamera2 photo mode. Capturing {args.vidWidth}x{args.vidHeight}, {args.imageRotation}° rotation")
     elif is_jetson() and not is_usb_camera(args.captureDevicePath):
@@ -277,12 +281,35 @@ if captureMode == "photo":
         print(f"Camera is ready in Jetson V4L2 Argus photo mode. Capturing {args.vidWidth}x{args.vidHeight}")
     else:
         v4l2_cam = cv2.VideoCapture(args.captureDevicePath, cv2.CAP_V4L2)
-        v4l2_cam.set(cv2.CAP_PROP_FRAME_WIDTH, args.vidWidth)
-        v4l2_cam.set(cv2.CAP_PROP_FRAME_HEIGHT, args.vidHeight)
         if not v4l2_cam.isOpened():
             sys.exit(f"V4L2 camera at {args.captureDevicePath} failed to open.")
+        mjpg = cv2.VideoWriter_fourcc(*'MJPG')
+        if args.rawMjpeg == 'auto':
+            # Most UVC cameras only reach full resolution in MJPEG mode
+            v4l2_cam.set(cv2.CAP_PROP_FOURCC, mjpg)
+        v4l2_cam.set(cv2.CAP_PROP_FRAME_WIDTH, args.vidWidth)
+        v4l2_cam.set(cv2.CAP_PROP_FRAME_HEIGHT, args.vidHeight)
+        # Fewer queued frames = fresher frame when the trigger arrives
+        if v4l2_cam.set(cv2.CAP_PROP_BUFFERSIZE, 1) and int(v4l2_cam.get(cv2.CAP_PROP_BUFFERSIZE)) == 1:
+            V4L2_FLUSH_FRAMES = 1
+        else:
+            V4L2_FLUSH_FRAMES = 5
+        if args.rawMjpeg == 'auto' and int(v4l2_cam.get(cv2.CAP_PROP_FOURCC)) == mjpg:
+            v4l2_cam.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+            RAW_MJPEG = True
+            # Reference Huffman tables (OpenCV/libjpeg writes the standard ones),
+            # added to camera frames that omit them
+            _, ref = cv2.imencode('.jpg', numpy.random.randint(0, 255, (16, 16, 3), dtype=numpy.uint8))
+            JPEG_DHT = mapping_utils.extract_dht(ref.tobytes())
+            print("Saving the camera's MJPEG frames directly (no re-encoding)", flush=True)
+        if args.exposureUs > 0:
+            v4l2_cam.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = V4L2_EXPOSURE_MANUAL
+            # V4L2 exposure_time_absolute is in units of 100 us
+            v4l2_cam.set(cv2.CAP_PROP_EXPOSURE, max(1, round(args.exposureUs / 100)))
+            print(f"Manual exposure: {args.exposureUs} us (camera reports {v4l2_cam.get(cv2.CAP_PROP_EXPOSURE)})", flush=True)
         time.sleep(2)
-        print(f"Camera is ready in V4L2 photo mode. Capturing {args.vidWidth}x{args.vidHeight}")
+        print(f"Camera is ready in V4L2 photo mode. Capturing "
+              f"{int(v4l2_cam.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(v4l2_cam.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
 elif captureMode == "video":
     if use_picamera:
@@ -397,6 +424,51 @@ def startstop_video():
             else:
                 print(f"Error: Could not open VideoWriter for {filepath}", file=sys.stderr)
 
+def save_v4l2_frame(filepath, frame):
+    """Save a V4L2 frame. Returns False if it could not be saved."""
+    global RAW_MJPEG
+    if RAW_MJPEG:
+        data = frame.tobytes() if frame is not None else b""
+        if data[:2] == b"\xff\xd8":
+            data = mapping_utils.ensure_dht(mapping_utils.trim_after_eoi(data), JPEG_DHT)
+            with open(filepath, 'wb') as f:
+                f.write(data)
+            return True
+        # Not a JPEG (camera changed format?) - fall back to decoded frames
+        print("Frame is not MJPEG, switching to decoded capture.", file=sys.stderr, flush=True)
+        RAW_MJPEG = False
+        v4l2_cam.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+        return False
+    return cv2.imwrite(filepath, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+
+def capture_photo():
+    if use_picamera:
+        # still configuration is already running, so the next frame is used
+        capture_time = time.time()
+        filepath = next_photo_path(capture_time)
+        print(f"Capturing photo to {filepath}")
+        picam2_still.capture_file(filepath)
+    else:
+        # Drop queued (stale) frames, then take a fresh one. grab() doesn't decode.
+        for _ in range(V4L2_FLUSH_FRAMES):
+            v4l2_cam.grab()
+        ret, frame = v4l2_cam.read()
+        capture_time = time.time()
+        if not ret:
+            print("Failed to capture frame from V4L2 camera.", file=sys.stderr)
+            return
+        filepath = next_photo_path(capture_time)
+        print(f"Capturing photo to {filepath}")
+        if not save_v4l2_frame(filepath, frame):
+            # save_v4l2_frame may have switched from raw MJPEG to decoded frames: retry once
+            ret, frame = v4l2_cam.read()
+            capture_time = time.time()
+            if not (ret and save_v4l2_frame(filepath, frame)):
+                print("Failed to save frame from V4L2 camera.", file=sys.stderr)
+                return
+    print("Photo captured.")
+    geotag_image(filepath, capture_time)
+
 if __name__ == '__main__':
     try:
         while True:
@@ -412,23 +484,7 @@ if __name__ == '__main__':
                     print(f"Free disk space is {(int)(freeDiskSpace / 10**6)} MB, which is less than the minimum of {(int)(minFreeSpace / 10**6)} MB. Action aborted.", flush=True)
                 else:
                     if captureMode == 'photo':
-                        filepath = os.path.join(mediaPath, time.strftime("RPN%Y%m%d_%H%M%S.jpg"))
-                        print(f"Capturing photo to {filepath}")
-                        if use_picamera:
-                            picam2_still.capture_file(filepath)
-                            print("Photo captured.")
-                            # Geotag the captured photo
-                            geotag_image(filepath)
-                        else:
-                            for _ in range(5): v4l2_cam.read()
-                            ret, frame = v4l2_cam.read()
-                            if ret:
-                                cv2.imwrite(filepath, frame)
-                                print("Photo captured.")
-                                # Geotag the captured photo
-                                geotag_image(filepath)
-                            else:
-                                print("Failed to capture frame from V4L2 camera.", file=sys.stderr)
+                        capture_photo()
                     elif captureMode == 'video':
                         print("Toggling video recording.")
                         startstop_video()
