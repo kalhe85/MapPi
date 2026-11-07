@@ -414,7 +414,8 @@ class videoStream {
       capabilities: { cv2: false, picamera2: false },
       selectedDevice: undefined,
       selectedCap: undefined,
-      stillMediaDestination: ''
+      stillMediaDestination: '',
+      stillExposureUs: 0
     };
 
     const pythonPath = logpaths.getPythonPath();
@@ -431,13 +432,15 @@ class videoStream {
         const defaultDevice = cameraDevices.find(dev => dev.caps && dev.caps.length > 0);
         const defaultCap = defaultDevice?.caps[0];
         const stillMediaDestination = this.toRelativePath(this.stillSettings?.mediaDestination || '');
+        const stillExposureUs = this.stillSettings?.exposureUs || 0;
 
         return callback(null, {
           devices: cameraDevices,
           capabilities: capabilities,
           selectedDevice: defaultDevice,
           selectedCap: defaultCap,
-          stillMediaDestination
+          stillMediaDestination,
+          stillExposureUs
         });
       } catch (e) {
         return callback('Invalid JSON from get_camera_caps.py', defaultResponse);
@@ -717,6 +720,7 @@ class videoStream {
     if (this.stillSettings.device) args.push('--device=' + this.stillSettings.device);
     if (this.stillSettings.width) args.push('--width=' + this.stillSettings.width);
     if (this.stillSettings.height) args.push('--height=' + this.stillSettings.height);
+    if (this.stillSettings.exposureUs > 0) args.push('--exposure-us=' + this.stillSettings.exposureUs);
     if (dest) {
       if (!this.ensureMediaDirectoryWritable(dest)) {
         return callback(new Error(`Media Destination is not writable: ${dest}`));
@@ -1011,8 +1015,12 @@ class videoStream {
     // Write GPS data to a temporary file for Python to read
     if (positionData) {
       try {
-        const gpsPayload = JSON.stringify(positionData);
-        fs.writeFileSync('/tmp/rpanion_gps.json', gpsPayload);
+        // triggerTimeMs/timeMs let photovideo.py correct the position to the
+        // actual frame capture time (see python/mapping_utils.py)
+        const gpsPayload = JSON.stringify({ ...positionData, triggerTimeMs: Date.now() });
+        // Write-then-rename so the Python process never reads a half-written file
+        fs.writeFileSync('/tmp/rpanion_gps.json.tmp', gpsPayload);
+        fs.renameSync('/tmp/rpanion_gps.json.tmp', '/tmp/rpanion_gps.json');
         console.log('Wrote GPS data for geotagging:', gpsPayload);
       } catch (e) {
         console.error('Failed to write GPS temp file:', e);

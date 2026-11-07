@@ -129,4 +129,28 @@ describe('Flight Controller Functions', function () {
     assert.equal(sent.diskUsedMiB, undefined)
     assert.equal(sent.diskTotalMiB, undefined)
   })
+
+  it('#updatePosition() and #updateAttitude() store data for geotagging', function () {
+    settings.clear()
+    const FC = new FCManagerClass(settings)
+    const before = Date.now()
+
+    FC.updatePosition({ lat: 210285000, lon: 1058542000, alt: 25500, relativeAlt: 12000, vx: 150, vy: -300, vz: 50, hdg: 9000 })
+    FC.updateAttitude({ roll: Math.PI / 18, pitch: -Math.PI / 36, yaw: Math.PI })
+
+    const pos = FC.vehiclePosition
+    assert.equal(pos.lat, 21.0285)
+    assert.equal(pos.lon, 105.8542)
+    assert.equal(pos.alt, 25.5)
+    assert.equal(pos.relAlt, 12)
+    assert.equal(pos.hdg, 90)
+    assert.equal(pos.vx, 1.5)
+    assert.equal(pos.vy, -3)
+    assert.equal(pos.vz, 0.5)
+    assert.ok(pos.timeMs >= before && pos.timeMs <= Date.now())
+    assert.ok(Math.abs(pos.roll - 10) < 1e-9)
+    assert.ok(Math.abs(pos.pitch + 5) < 1e-9)
+    assert.ok(Math.abs(pos.yaw - 180) < 1e-9)
+    assert.ok(pos.attTimeMs >= before)
+  })
 })
