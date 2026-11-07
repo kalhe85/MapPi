@@ -1,19 +1,22 @@
 {
   "name": "rpanion-server",
   "version": "1.1.0-dev",
-  "description": "node.js based server for companion computers used in Mavlink-based vehicles (ie Ardupilot, PX4). It presents a web-based interface (running on the companion computer), where system settings such as network, telemetry and video streaming can be configured from.",
+  "description": "MapPi: companion computer server for a DIY mapping drone (Raspberry Pi Zero 2 W + ArduPilot). Based on Rpanion-server by Stephen Dade.",
   "private": true,
   "secure": false,
   "license": "GPL-3.0",
   "author": "Stephen Dade <stephen_dade@hotmail.com>",
+  "contributors": [
+    "Sonph (MapPi fork)"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/stephendade/Rpanion-server.git"
+    "url": "https://github.com/kalhe85/Rpanion-server.git"
   },
   "bugs": {
-    "url": "https://github.com/stephendade/Rpanion-server/issues"
+    "url": "https://github.com/kalhe85/Rpanion-server/issues"
   },
-  "homepage": "https://www.docs.rpanion.com/software/rpanion-server",
+  "homepage": "https://github.com/kalhe85/Rpanion-server",
   "keywords": [
     "mavlink",
     "ardupilot",
@@ -82,7 +85,7 @@
     "install_strategy": "copy",
     "maintainer": "Stephen Dade (stephen_dade@hotmail.com)",
     "architecture": "${DEB_HOST_ARCH}",
-    "description": "node.js based server for companion computers used in Mavlink-based vehicles (ie Ardupilot, PX4). It presents a web-based interface (running on the companion computer), where system settings such as network, telemetry and video streaming can be configured from.",
+    "description": "MapPi: companion computer server for a DIY mapping drone (Raspberry Pi Zero 2 W + ArduPilot). Based on Rpanion-server by Stephen Dade.",
     "templates": {
       "systemd_service": "./debian/systemd.service",
       "postinst": "./debian/postinst",

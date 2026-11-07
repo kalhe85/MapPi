@@ -254,7 +254,7 @@ class FCPage extends basePage {
                   </div>
                 </div>
                 <div className="form-group row" style={{ marginBottom: '5px' }}>
-                  <p><i>Requires NET_Pn_TYPE=1 and NET_Pn_IP*=Rpanion IP Address</i></p>
+                  <p><i>Requires NET_Pn_TYPE=1 and NET_Pn_IP*=MapPi IP Address</i></p>
                 </div>
               </>
             )}
@@ -282,7 +282,7 @@ class FCPage extends basePage {
                 <tr><th>Destination IP:Port</th><th>Action</th></tr>
               </thead>
               <tbody>
-                <tr key={this.state.UDPoutputs.length}><td>127.0.0.1:14540</td><td><i>Required for Rpanion-server</i></td></tr>
+                <tr key={this.state.UDPoutputs.length}><td>127.0.0.1:14540</td><td><i>Required for MapPi</i></td></tr>
                 {this.renderUDPTableData(this.state.UDPoutputs)}
               </tbody>
             </Table>
@@ -321,7 +321,7 @@ class FCPage extends basePage {
         <Accordion.Item eventKey="2">
           <Accordion.Header>Other Options</Accordion.Header>
           <Accordion.Body>
-            <p><i>Allow Rpanion-server to send datastream requests. Required if a GCS is not connected</i></p>
+            <p><i>Allow MapPi to send datastream requests. Required if a GCS is not connected</i></p>
             <div className="form-group row" style={{ marginBottom: '5px' }}>
               <label className="col-sm-5 col-form-label">Enable datastream requests</label>
               <div className="col-sm-7">
@@ -329,7 +329,7 @@ class FCPage extends basePage {
               </div>
             </div>
             <br />
-            <p><i>Advertise RPanion as an onboard companion computer on the MAVLink network</i></p>
+            <p><i>Advertise MapPi as an onboard companion computer on the MAVLink network</i></p>
             <div className="form-group row" style={{ marginBottom: '5px' }}>
               <label className="col-sm-5 col-form-label">Enable MAVLink heartbeats</label>
               <div className="col-sm-7">

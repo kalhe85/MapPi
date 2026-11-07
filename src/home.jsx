@@ -94,12 +94,12 @@ class Home extends basePage {
           <h5>Quick Links</h5>
           <p>Use the navigation menu to configure system components:</p>
           <ul>
-            <li><a href='https://github.com/stephendade/Rpanion-server'>Rpanion-server website</a></li>
-            <li><a href='https://www.docs.rpanion.com/software/rpanion-server'>Rpanion-server documentation</a></li>
+            <li><a href='https://github.com/kalhe85/Rpanion-server'>MapPi source code</a></li>
+            <li><a href='https://www.docs.rpanion.com/software/rpanion-server'>Rpanion-server documentation</a> (the project MapPi is based on)</li>
           </ul>
         </div>
 
-        <p>Welcome to the Rpanion-server home page. Real-time system status is updated every second.</p>
+        <p>Welcome to MapPi. Real-time system status is updated every second.</p>
         
         <Row className="mb-4">
           <Col md={6} className="mb-3">
