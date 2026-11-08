@@ -72,8 +72,8 @@ cd ~/MapPi
 ./deploy/devExtras.sh         # downloads the mavlink-router binary to ~/MapPi/mavlink-routerd
 npm ci
 npm run build
-npm run package               # includes ./mavlink-routerd in the package
-sudo dpkg -i rpanion-server_*.deb
+./deploy/build-deb.sh         # builds rpanion-server_<version>_arm64.deb (includes ./mavlink-routerd)
+sudo dpkg -i rpanion-server_*_arm64.deb
 ```
 
 If downloading mavlink-router fails (e.g. GitHub returns 504), build it from source
