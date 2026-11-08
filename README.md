@@ -77,7 +77,7 @@ sudo dpkg -i rpanion-server_*.deb
 ```
 
 If downloading mavlink-router fails (e.g. GitHub returns 504), build it from source
-instead (10–20 minutes on a Pi Zero 2 W); it installs to `/usr/bin/mavlink-routerd`,
+instead (10–20 minutes on a Pi Zero 2 W); it installs to `/usr/local/bin/mavlink-routerd`,
 which MapPi also finds:
 
 ```bash
