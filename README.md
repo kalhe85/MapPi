@@ -69,11 +69,24 @@ on a Pi Zero 2 W), then build and install the package:
 
 ```bash
 cd ~/MapPi
-./deploy/devExtras.sh         # downloads the mavlink-router binary
+./deploy/devExtras.sh         # downloads the mavlink-router binary to ~/MapPi/mavlink-routerd
 npm ci
 npm run build
-npm run package
+npm run package               # includes ./mavlink-routerd in the package
 sudo dpkg -i rpanion-server_*.deb
+```
+
+If downloading mavlink-router fails (e.g. GitHub returns 504), build it from source
+instead (10–20 minutes on a Pi Zero 2 W); it installs to `/usr/local/bin/mavlink-routerd`,
+which MapPi also finds:
+
+```bash
+sudo apt install -y git meson ninja-build pkg-config gcc g++ systemd-dev
+git clone --recurse-submodules https://github.com/mavlink-router/mavlink-router.git ~/mavlink-router
+cd ~/mavlink-router
+meson setup build .
+ninja -C build
+sudo ninja -C build install
 ```
 
 The web interface is then at `http://<device_ip>:3001`. To set up the Wi-Fi
