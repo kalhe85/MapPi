@@ -94,7 +94,7 @@ class Home extends basePage {
           <h5>Quick Links</h5>
           <p>Use the navigation menu to configure system components:</p>
           <ul>
-            <li><a href='https://github.com/kalhe85/Rpanion-server'>MapPi source code</a></li>
+            <li><a href='https://github.com/kalhe85/MapPi'>MapPi source code</a></li>
             <li><a href='https://www.docs.rpanion.com/software/rpanion-server'>Rpanion-server documentation</a> (the project MapPi is based on)</li>
           </ul>
         </div>
