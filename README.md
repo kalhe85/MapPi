@@ -61,11 +61,11 @@ Install from source on Raspberry Pi OS:
 ```bash
 git clone --recurse-submodules https://github.com/kalhe85/MapPi.git
 cd MapPi/deploy
-./RasPi3-4-5-deploy.sh        # system packages, serial port, NetworkManager (reboots)
+./RasPi3-4-5-deploy.sh        # system packages, Node.js, swap, serial port, NetworkManager (reboots)
 ```
 
-After the reboot, install Node.js 24 (https://deb.nodesource.com/), then build
-and install the package:
+After the reboot, check that `free -h` shows about 1 GB of swap (needed to build
+on a Pi Zero 2 W), then build and install the package:
 
 ```bash
 cd ~/MapPi
