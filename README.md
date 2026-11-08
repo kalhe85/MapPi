@@ -59,8 +59,8 @@ Inherited from Rpanion-server:
 Install from source on Raspberry Pi OS:
 
 ```bash
-git clone --recurse-submodules https://github.com/kalhe85/Rpanion-server.git mappi
-cd mappi/deploy
+git clone --recurse-submodules https://github.com/kalhe85/MapPi.git
+cd MapPi/deploy
 ./RasPi3-4-5-deploy.sh        # system packages, serial port, NetworkManager (reboots)
 ```
 
@@ -68,7 +68,7 @@ After the reboot, install Node.js 24 (https://deb.nodesource.com/), then build
 and install the package:
 
 ```bash
-cd ~/mappi
+cd ~/MapPi
 ./deploy/devExtras.sh         # downloads the mavlink-router binary
 npm ci
 npm run build
