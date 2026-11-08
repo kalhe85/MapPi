@@ -7,14 +7,30 @@ git submodule update --init --recursive
 
 # Increase swap size to 1024MB if it is currently less than 1000MB
 # Allows the NPM build to complete successfully on systems with 500MB of RAM
-if [ $(stat -c%s "/var/swap") -le 1000000000 ]; then
-    echo "Swap file is less than 1000MB. Increasing to 1024MB."
+# (e.g. Raspberry Pi Zero 2 W)
+SWAP_KB=$(awk 'NR>1 {sum += $3} END {print sum+0}' /proc/swaps)
+if [ "$SWAP_KB" -ge 976000 ]; then
+    echo "Swap is already >1000MB"
+elif command -v dphys-swapfile >/dev/null 2>&1; then
+    # Raspberry Pi OS Bookworm and older
+    echo "Swap is less than 1000MB. Increasing to 1024MB (dphys-swapfile)."
     sudo dphys-swapfile swapoff
     sudo sed -i '/CONF_SWAPSIZE=.*/c\CONF_SWAPSIZE=1024' /etc/dphys-swapfile
     sudo dphys-swapfile setup
     sudo dphys-swapfile swapon
+elif [ -d /etc/rpi ] && dpkg -s rpi-swap >/dev/null 2>&1; then
+    # Raspberry Pi OS Trixie and newer: swap is managed by rpi-swap
+    # Applied at the next boot (this script reboots at the end)
+    echo "Swap is less than 1000MB. Setting a 1024MB swap file (rpi-swap)."
+    sudo mkdir -p /etc/rpi/swap.conf.d
+    printf '[Main]\nMechanism=swapfile\n\n[File]\nFixedSizeMiB=1024\n' | sudo tee /etc/rpi/swap.conf.d/80-mappi.conf >/dev/null
 else
-    echo "Swapfile is already >1000MB"
+    echo "Swap is less than 1000MB. Creating a 1024MB /swapfile."
+    sudo fallocate -l 1G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
 fi
 
 ## Pi5 uses a different UART for the 40-pin header (/dev/ttyAMA0)
